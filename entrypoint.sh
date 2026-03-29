@@ -7,6 +7,6 @@ then
 fi
 
 chmod +x /app/backup.sh;
-echo '0 3 * * * /app/backup.sh >> /tmp/backup.log 2>&1' > /etc/crontabs/root;
+echo "${BACKUP_CRON:-0 3 * * *} /app/backup.sh >> /tmp/backup.log 2>&1" > /etc/crontabs/root;
 
 "$@"
