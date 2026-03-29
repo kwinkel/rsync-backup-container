@@ -1,8 +1,8 @@
-name: Build and Publish Container Image
+name: Build and Push Container Image
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   workflow_dispatch:
 
 jobs:
@@ -14,8 +14,47 @@ jobs:
       packages: write
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Log in to GitHub Container Registry
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Alpine version
+        id: alpine
+        run: |
+          ALPINE_VERSION=$(grep -oP 'FROM alpine:\K[0-9.]+' Dockerfile)
+          echo "version=$ALPINE_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Build tags
+        id: tags
+        run: |
+          ALPINE=${{ steps.alpine.outputs.version }}
+          BUILD=${{ github.run_number }}
+          SHA=${{ github.sha }}
+
+          SHORT_SHA=${SHA::7}
+
+          TAG1=ghcr.io/${{ github.repository }}:r${ALPINE}-${BUILD}
+          TAG2=ghcr.io/${{ github.repository }}:${SHORT_SHA}
+          TAG3=ghcr.io/${{ github.repository }}:latest
+
+          echo "tags<<EOF" >> $GITHUB_OUTPUT
+          echo "$TAG1" >> $GITHUB_OUTPUT
+          echo "$TAG2" >> $GITHUB_OUTPUT
+          echo "$TAG3" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
